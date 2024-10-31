@@ -1,27 +1,3 @@
-#this is the entry point of the program
-
-.macro print_string
-	li $v0, 4
-	syscall
-.end_macro
-
-.macro print_pointer
-	li $v0, 1
-	syscall
-.end_macro
-
-.macro new_line
-	li $v0, 11
-	li $a0, 10
-	syscall
-.end_macro
-
-.macro print_space
-	li $v0, 11
-	li $a0, 32
-	syscall
-.end_macro
-
 .data
 STRING_done: .asciiz "Multitask started\n"
 STRING_main0: .asciiz "Starting main task...\n"
@@ -88,10 +64,15 @@ infinit:
 		la $a0, STRING_main1
 		li $v0, 4
 		syscall
+		
 		move $a0, $t0
 		li $v0, 1
 		syscall
-		new_line
+		
+		li $v0, 11
+		li $a0, '\n'
+		syscall
+		
 		addi $t0, $t0, 1
 		b loop
 
