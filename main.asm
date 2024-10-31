@@ -2,11 +2,6 @@
 STRING_done: .asciiz "Multitask started\n"
 STRING_main0: .asciiz "Starting main task...\n"
 STRING_main1: .asciiz "Main Task - "
-string_test_error: .asciiz "Pointers with wrong values!\n"
-err1: .asciiz "ready pointer wrong!\n"
-err2: .asciiz "last ready pointer wrong!\n"
-err3: .asciiz "running pointer wrong!\n"
-success_testing: .asciiz ""
 
 test_string: .asciiz "Preparation done!\n"
 
