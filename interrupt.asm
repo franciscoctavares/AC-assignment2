@@ -1,5 +1,3 @@
-# you must put here the necessary code to deal with the interrupts
-
 .include "macros.asm"
 
 .data
@@ -12,8 +10,6 @@ LAST_READY: .word 0x00000000
 
 RUNNING_str: .asciiz "RUNNING: "
 READY_str: .asciiz "READY: "
-BASE_ADDR: .asciiz "PCB_BLOCKS: "
-NEXT_PCB_str: .asciiz "NEXT PCB: "
 
 ALL_INT_MASK: .word 0x0000ff00
 KBD_INT_MASK: .word 0x00010000
@@ -21,6 +17,43 @@ KBD_INT_MASK: .word 0x00010000
 RCR: .word 0xffff0000
 
 next_str: .asciiz " -> "
+
+.eqv at 0
+.eqv v0 4
+.eqv v1 8
+.eqv a0 12
+.eqv a1 16
+.eqv a2 20
+.eqv a3 24
+.eqv t0 28
+.eqv t1 32
+.eqv t2 36
+.eqv t3 40
+.eqv t4 44
+.eqv t5 48
+.eqv t6 52
+.eqv t7 56
+.eqv s0 60
+.eqv s1 64
+.eqv s2 68
+.eqv s3 72
+.eqv s4 76
+.eqv s5 80
+.eqv s6 84
+.eqv s7 88
+.eqv t8 92
+.eqv t9 96
+.eqv k0 100
+.eqv k1 104
+.eqv gp 108
+.eqv sp 112
+.eqv fp 116
+.eqv ra 120
+.eqv hi 124
+.eqv lo 128
+.eqv epc 132
+.eqv PROCESS_ID 136
+.eqv NEXT_PCB 140
 
 .text
 int_enable:
@@ -52,10 +85,10 @@ sw $k0 , save_at
 sw $v0 , save_v0
 sw $t0, save_t0
 
-mfc0 $k0 , $13 # get cause register
+mfc0 $k0 , $13 # 13 = cause register
 srl $t1 , $k0 ,2
 andi $t1 , $t1 ,0x1f # extract bits 2?6
-bnez $t1 , non_int #
+bnez $t1 , non_int # not an interrupt
 andi $t2 , $k0 ,0x00000100 # is bit 8 set?
 bnez $t2 , timer_int
 b int_end
@@ -68,8 +101,6 @@ non_int:
 
 timer_int:
 	jal print_PCB_sequence
-	#jal print_stack_adress
-	
 	jal save_running_task_registers
 	
 	lw $t0, RUNNING
@@ -90,7 +121,6 @@ timer_int:
 	sw $zero, 140($t0) # run -> next = null
 	
 	jal print_PCB_sequence
-	#jal print_stack_adress
 	jal load_next_task_registers
 	
 int_end:

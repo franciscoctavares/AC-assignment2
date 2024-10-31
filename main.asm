@@ -1,10 +1,46 @@
 .data
+
+.eqv at 0
+.eqv v0 4
+.eqv v1 8
+.eqv a0 12
+.eqv a1 16
+.eqv a2 20
+.eqv a3 24
+.eqv t0 28
+.eqv t1 32
+.eqv t2 36
+.eqv t3 40
+.eqv t4 44
+.eqv t5 48
+.eqv t6 52
+.eqv t7 56
+.eqv s0 60
+.eqv s1 64
+.eqv s2 68
+.eqv s3 72
+.eqv s4 76
+.eqv s5 80
+.eqv s6 84
+.eqv s7 88
+.eqv t8 92
+.eqv t9 96
+.eqv k0 100
+.eqv k1 104
+.eqv gp 108
+.eqv sp 112
+.eqv fp 116
+.eqv ra 120
+.eqv hi 124
+.eqv lo 128
+.eqv epc 132
+.eqv PROCESS_ID 136
+.eqv NEXT_PCB 140
+
 STRING_done: .asciiz "Multitask started\n"
 STRING_main0: .asciiz "Starting main task...\n"
 STRING_main1: .asciiz "Main Task - "
-
 test_string: .asciiz "Preparation done!\n"
-
 empty_list_str: .asciiz "empty list!"
 AVAILABLE_str: .asciiz "AVAILABLE: "
 LAST_READY_str: .asciiz "LAST_READY: "
@@ -26,23 +62,22 @@ main:
 		
 	
 # newtask (t0)
-	la $a0, t0
+	la $a0, task0
 	jal newtask
 	#jal print_all_pointers
 	
 # newtask(t1)	
-	la $a0, t1
+	la $a0, task1
 	jal newtask
 	#jal print_all_pointers
 
 # newtask(t2)
-	la $a0, t2
+	la $a0, task2
 	jal newtask
 	#jal print_all_pointers
 
 # startmulti() and continue to 
 # the infinit loop of the main function
-	jal fix_linked_list
 	jal start_multi
 	
 	la $a0, STRING_done
@@ -76,6 +111,8 @@ prep_multi:
 	la $t0, PCB_BLOCKS
 	
 	sw $t0, RUNNING # running process now points to the main task's PCB
+	lw $t0, RUNNING
+	sw $zero, NEXT_PCB($t0) # RUNNING -> next = null
 	
 	la $t0, PCB_BLOCKS
 	addi $t0, $t0, PCB_SIZE
@@ -90,47 +127,50 @@ prep_multi:
 	
 	jr $ra
 	
-newtask:
-	#move $s0, $a0 # save the starting adress of the new task in s0
-	
+newtask:	
 	lb $t0, CREATED_TASK_COUNTER
 	bge $t0, 10, done
 	bne $t0, 1, non_empty_list
 	empty_list:
 		lw $t0, AVAILABLE
 		sw $t0, READY # ready = available
-	non_empty_list:
-		lw $t0, AVAILABLE
-		sw $t0, LAST_READY # LAST_READY = AVAILABLE
 		
+		lw $t0, READY
+		sw $t0, LAST_READY # LAST_READY = READY
+		
+		lw $t0, LAST_READY
+		sw $zero, NEXT_PCB($t0) # LAST_READY -> next = null
+		
+		lw $t0, AVAILABLE
 		addi $t0, $t0, PCB_SIZE
 		sw $t0, AVAILABLE # AVAILABLE += PCB_SIZE
-
+		
+		b increment_counter
+	non_empty_list:
+		lw $t0, LAST_READY
+		lw $t1, AVAILABLE
+		sw $t1, NEXT_PCB($t0)
+		
+		lw $t0, LAST_READY
+		lw $t1, NEXT_PCB($t0) # LAST_READY -> next
+		sw $t1, LAST_READY # LAST_READY = LAST_READY -> next
+		
+		lw $t0, LAST_READY
+		sw $zero, NEXT_PCB($t0) # LAST_READY -> next = null
+		
+		lw $t0, AVAILABLE
+		addi $t0, $t0, PCB_SIZE
+		sw $t0, AVAILABLE # AVAILABLE += PCB_SIZE
+	increment_counter:
 		lb $t0, CREATED_TASK_COUNTER
 		addi $t0, $t0, 1
 		sb $t0, CREATED_TASK_COUNTER # CREATED_TASK_COUNTER += 1
-		
-		# this next block stores the new task's process in the corresponding PCB's address
-		lb $t0, CREATED_TASK_COUNTER
-		addi $t0, $t0, -1
-		mulu $t1, $t0, PCB_SIZE # t1 = (CREATED_TASK_COUNTER - 1) * PCB_SIZE
-		move $s0, $t1 # base adress of the new task's PCB
-		addi $t1, $t1, 136
-		la $t2, PCB_BLOCKS
-		add $t2, $t2, $t1
-		sw $t0, 0($t2) # stores the new process id on the correspondent PCB
-		
-		sw $a0, -4($t2) # new task's starting address(epc)
-		
-		##### prototype for the implementation of different process stacks
-		#lb $t0, CREATED_TASK_COUNTER
-		#addi $t0, $t0, -1 # t0 = task_counter - 1
-		#mulu $t1, $t0, STACK_SIZE # t1 = (task_counter - 1) * STACK_SIZE
-		#addi $t1, $t1, 96 # starting adress of the new task's stack
-		#la $t2, PCB_STACKS
-		#add $t2, $t2, $t1 # t2 holds the starting adress of the new task's stack
-		#sw $t2, 112($s0) # store new task's $sp in its PCB
-		######
+	store_pid_epc:
+		lw $t0, LAST_READY
+		lb $t1, CREATED_TASK_COUNTER
+		addi $t1, $t1, -1
+		sb $t1, PROCESS_ID($t0) # stores the new process id on the correspondent PCB
+		sw $a0, epc($t0) # new task's starting address(epc)
 	done:
 		jr $ra
     
@@ -145,24 +185,7 @@ start_multi:
 	
 	jr $ra
 	
-fix_linked_list:
-	lw $s0, READY # s0 = task0
-	
-	addi $t0, $s0, PCB_SIZE # t0 = task0 -> next
-	sw $t0, 140($s0) # task0 -> task1
-	
-	addi $s0, $s0, PCB_SIZE # s0 = task1
-	addi $t0, $s0, PCB_SIZE # t0 = task1 -> next
-	sw $t0, 140($s0) # task1 -> task2
-	
-	addi $s0, $s0, PCB_SIZE
-	sw $zero, 140($s0) # task2 -> null
-	
-	jr $ra
-
 .include "interrupt.asm"
 .include "t0.asm"
 .include "t1.asm"
 .include "t2.asm"
-
-#END

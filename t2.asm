@@ -3,12 +3,12 @@
 STRING_T2A: .asciiz "\Starting Third task...\n"
 STRING_T2B: .asciiz "\nThird Task - "
 .text
-t2: 
+task2: 
 	li $t0,0
 	la $a0, STRING_T2A
 	li $v0, 4
 	syscall
-repeat2:
+repeat_task2:
 	la $a0, STRING_T2B
 	li $v0, 4
 	syscall
@@ -18,4 +18,4 @@ repeat2:
 	syscall
 	
 	addi $t0,$t0,1
-	b repeat2
+	b repeat_task2
