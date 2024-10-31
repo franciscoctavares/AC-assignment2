@@ -1,41 +1,6 @@
-.data
+.include "macros.asm"
 
-.eqv at 0
-.eqv v0 4
-.eqv v1 8
-.eqv a0 12
-.eqv a1 16
-.eqv a2 20
-.eqv a3 24
-.eqv t0 28
-.eqv t1 32
-.eqv t2 36
-.eqv t3 40
-.eqv t4 44
-.eqv t5 48
-.eqv t6 52
-.eqv t7 56
-.eqv s0 60
-.eqv s1 64
-.eqv s2 68
-.eqv s3 72
-.eqv s4 76
-.eqv s5 80
-.eqv s6 84
-.eqv s7 88
-.eqv t8 92
-.eqv t9 96
-.eqv k0 100
-.eqv k1 104
-.eqv gp 108
-.eqv sp 112
-.eqv fp 116
-.eqv ra 120
-.eqv hi 124
-.eqv lo 128
-.eqv epc 132
-.eqv PROCESS_ID 136
-.eqv NEXT_PCB 140
+.data
 
 STRING_done: .asciiz "Multitask started\n"
 STRING_main0: .asciiz "Starting main task...\n"
@@ -56,9 +21,8 @@ AVAILABLE: .word 0x00000000
 main:
 # prepare the structures	
 	jal prep_multi
-	li $v0, 4
 	la $a0, test_string
-	syscall
+	print_string
 		
 	
 # newtask (t0)
@@ -81,27 +45,22 @@ main:
 	jal start_multi
 	
 	la $a0, STRING_done
-	li $v0, 4
-	syscall
+	print_string
 	
-infinit: 
+infinit:
 	# Reapeatedly print a string
 	li $t0, 0
 	la $a0, STRING_main0
-	li $v0, 4
-	syscall
+	print_string
 	loop:
 		la $a0, STRING_main1
-		li $v0, 4
-		syscall
+		print_string
 		
 		move $a0, $t0
-		li $v0, 1
-		syscall
+		print_int
 		
-		li $v0, 11
 		li $a0, '\n'
-		syscall
+		print_char
 		
 		addi $t0, $t0, 1
 		b loop
@@ -152,7 +111,7 @@ newtask:
 		sw $t1, NEXT_PCB($t0)
 		
 		lw $t0, LAST_READY
-		lw $t1, NEXT_PCB($t0) # LAST_READY -> next
+		lw $t1, NEXT_PCB($t0) # t1 = LAST_READY -> next
 		sw $t1, LAST_READY # LAST_READY = LAST_READY -> next
 		
 		lw $t0, LAST_READY
