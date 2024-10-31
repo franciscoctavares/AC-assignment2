@@ -153,15 +153,8 @@ newtask:
 		#addi $t1, $t1, 96 # starting adress of the new task's stack
 		#la $t2, PCB_STACKS
 		#add $t2, $t2, $t1 # t2 holds the starting adress of the new task's stack
+		#sw $t2, 112($s0) # store new task's $sp in its PCB
 		######
-		
-		sw $t2, 112($s0) # store new task's $sp in its PCB
-		
-		
-		
-		sub $t2, $t2, $t1
-		addi $t2, $t2, 132
-		sw $a0, 0($t2) # stores the new task's starting adress in the PCB's slot for the epc register	
 	done:
 		jr $ra
     
