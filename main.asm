@@ -10,25 +10,23 @@ STRING_main1: .asciiz "Main Task - "
 
 .text
 
-main:
+.globl _main
+
+_main:
 # prepare the structures
 	jal prep_multi
 	la $a0, prep_multi_str
 	print_string
 	
-# newtask (t0)
+# create the 3 tasks, with a0 = starting adress of the task's code and a1 = task's priority
 	la $a0, task0
 	li $a1, 1
 	jal newtask
-	#li $v0, 10
-	#syscall
 	
-# newtask(t1)
 	la $a0, task1
 	li $a1, 1
 	jal newtask
 
-# newtask(t2)
 	la $a0, task2
 	li $a1, 1
 	jal newtask
@@ -40,23 +38,22 @@ main:
 	la $a0, start_multi_str
 	print_string
 	
-infinit:
-	# Reapeatedly print a string
-	li $t0, 0
-	la $a0, STRING_main0
-	print_string
-	loop:
-		la $a0, STRING_main1
+	infinit:
+		li $t0, 0
+		la $a0, STRING_main0
 		print_string
+		loop:
+			la $a0, STRING_main1
+			print_string
 		
-		move $a0, $t0
-		print_int
+			move $a0, $t0
+			print_int
+			
+			li $a0, '\n'
+			print_char
 		
-		li $a0, '\n'
-		print_char
-		
-		addi $t0, $t0, 1
-		b loop
+			addi $t0, $t0, 1
+			b loop
 # the support functions	
 prep_multi:
 	la $t0, PCB_BLOCKS
@@ -78,7 +75,7 @@ prep_multi:
 	
 	la $t0, PCB_BLOCKS
 	li $t1, 3
-	sw $t1, TICKS_TO_SWITCH($t0)
+	sw $t1, TICKS_TO_SWITCH($t0) # sets the TICKS_TO_SWITCH field to 3
 	
 	sw $zero, READY_HIGH
 	sw $zero, READY_LOW
