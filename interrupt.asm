@@ -1,19 +1,19 @@
 .data
 
-PCB_BLOCKS: .space 1440 # 144 bytes x 10 Tasks
-PCB_STACKS: .space 1000 # (4 bytes x 25 variables) x 10 PCB's
-RUNNING: .word 0x00000000
-READY: .word 0x00000000
-LAST_READY: .word 0x00000000
-
 RUNNING_str: .asciiz "RUNNING: "
 READY_str: .asciiz "READY: "
 next_str: .asciiz " -> "
 
+new_task_str: .asciiz "New task!"
+sleep_str: .asciiz "Going to sleep!"
+test_str: .asciiz "Able to use the digital lab sim counter!"
+
 ALL_INT_MASK: .word 0x0000ff00
 KBD_INT_MASK: .word 0x00010000
+TIMER_INT_MASK: .word 0x00000400
 
 RCR: .word 0xffff0000
+COUNTER_INT_ENABLE: .word 0xFFFF0013
 
 .text
 int_enable:
@@ -23,12 +23,17 @@ int_enable:
 	and $t0 , $t0 , $t1 # disable all int
 	lw $t1, KBD_INT_MASK
 	or $t0, $t0, $t1
+	#lw $t1, TIMER_INT_MASK
+	#or $t0, $t0, $t1
 	mtc0 $t0 , $12
 	
 	# now enable keyboard interrupts
 	lw $t0, RCR
 	li $t1 , 0x00000002
 	sw $t1 0($t0)
+	
+	#li $t0, 1
+	#sb $t0, COUNTER_INT_ENABLE
 	
 	jr $ra
 
@@ -48,7 +53,12 @@ sw $t0, save_t0
 mfc0 $k0 , $13 # 13 = cause register
 srl $t1 , $k0 ,2
 andi $t1 , $t1 ,0x1f # extract bits 2?6
+andi $t2, $k0, 0x00000400 # check for timer interrupt from digital lab sim
+#bnez $t2, test_int
+andi $t2, $t1, 13
+bnez $t2, trap_int
 bnez $t1 , non_int # not an interrupt
+#beq $t1, 13, trap_stuff
 andi $t2 , $k0 ,0x00000100 # is bit 8 set?
 bnez $t2 , timer_int
 b int_end
@@ -59,29 +69,117 @@ non_int:
 	mtc0 $k0 , $14
 	b int_end
 
+test_int:
+	la $a0, test_str
+	print_string
+	b int_end
+
+trap_int:
+	#bne $a0, 1, int_end
+	beq $a0, 1, new_task_int
+	beq $a0, 2, sleep_l
+	b done_int
+	sleep_l:
+		la $a0, sleep_str
+		print_string
+	done_int:
+		mfc0 $t0, $14
+		addi $t0, $t0, 4
+		mtc0 $t0, $14
+		b int_end
+		
+# a1 = starting instruction, a2 = task priority
+new_task_int:	
+	lb $t0, CREATED_TASK_COUNTER
+	bge $t0, 10, done
+	bne $t0, 1, non_empty_list
+	empty_list:
+		lw $t0, AVAILABLE
+		sw $t0, READY # ready = available
+		
+		lw $t0, READY
+		sw $t0, LAST_READY # LAST_READY = READY
+		
+		lw $t0, LAST_READY
+		sw $zero, NEXT_PCB($t0) # LAST_READY -> next = null
+		
+		lw $t0, AVAILABLE
+		addi $t0, $t0, PCB_SIZE
+		sw $t0, AVAILABLE # AVAILABLE += PCB_SIZE
+		
+		b increment_counter
+	non_empty_list:
+		lw $t0, LAST_READY
+		lw $t1, AVAILABLE
+		sw $t1, NEXT_PCB($t0)
+		
+		lw $t0, LAST_READY
+		lw $t1, NEXT_PCB($t0) # t1 = LAST_READY -> next
+		sw $t1, LAST_READY # LAST_READY = LAST_READY -> next
+		
+		lw $t0, LAST_READY
+		sw $zero, NEXT_PCB($t0) # LAST_READY -> next = null
+		
+		lw $t0, AVAILABLE
+		addi $t0, $t0, PCB_SIZE
+		sw $t0, AVAILABLE # AVAILABLE += PCB_SIZE
+	increment_counter:
+		lb $t0, CREATED_TASK_COUNTER
+		addi $t0, $t0, 1
+		sb $t0, CREATED_TASK_COUNTER # CREATED_TASK_COUNTER += 1
+	store_pid_epc:
+		lw $t0, LAST_READY
+		lb $t1, CREATED_TASK_COUNTER
+		addi $t1, $t1, -1
+		sb $t1, PROCESS_ID($t0) # stores the new process id on the correspondent PCB
+		sw $a1, epc($t0) # new task's starting address(epc)
+		li $t1, 3
+		sw $t1, TICKS_TO_SWITCH($t0) # TICKS_TO_SWITCH = 3
+		sw $zero, TICKS_TO_WAIT($t0) # TICKS_TO_WAIT = 0
+		sw $a2, PRIORITY($t0) # priority = a2
+	done:
+		mfc0 $t0, $14
+		addi $t0, $t0, 4
+		mtc0 $t0, $14
+		la $a0, new_task_str
+		print_string
+		b int_end
+
 timer_int:
-	jal print_PCB_sequence
-	jal save_running_task_registers
-	
+	#jal print_PCB_sequence
 	lw $t0, RUNNING
-	lw $t1, LAST_READY
-	sw $t0, 140($t1) # last_ready -> next = run
+	lw $t1, TICKS_TO_SWITCH($t0)
 	
-	lw $t0, RUNNING
-	sw $t0, LAST_READY # last_ready = run
+	beqz $t1, switch_task
 	
-	lw $t0, READY
-	sw $t0, RUNNING # run = ready
+	addi $t1, $t1, -1
+	sw $t1, TICKS_TO_SWITCH($t0)
+	#jal print_TICKS_TO_SWITCH
+	b int_end
 	
-	lw $t0, READY
-	lw $t0, 140($t0) # t0 = ready->next
-	sw $t0, READY # ready = ready->next
+	switch_task:
+		li $t1, 3
+		jal save_running_task_registers
 	
-	lw $t0, RUNNING
-	sw $zero, 140($t0) # run -> next = null
+		lw $t0, RUNNING
+		lw $t1, LAST_READY
+		sw $t0, 140($t1) # last_ready -> next = run
 	
-	jal print_PCB_sequence
-	jal load_next_task_registers
+		lw $t0, RUNNING
+		sw $t0, LAST_READY # last_ready = run
+	
+		lw $t0, READY
+		sw $t0, RUNNING # run = ready
+	
+		lw $t0, READY
+		lw $t0, 140($t0) # t0 = ready->next
+		sw $t0, READY # ready = ready->next
+	
+		lw $t0, RUNNING
+		sw $zero, 140($t0) # run -> next = null
+	
+		#jal print_PCB_sequence
+		jal load_next_task_registers
 	
 int_end:
 	lw $v0 , save_v0
@@ -262,7 +360,34 @@ print_PCB_sequence:
 	addi $sp, $sp, 4
 	jr $ra
 	
-print_stack_adress:
-	lw $a0, 0($sp)
+print_TICKS_TO_SWITCH:
+	la $t0, PCB_BLOCKS
+	
+	li $a0, '\n'
+	print_char
+	
+	lw $a0, TICKS_TO_SWITCH($t0) # main task
 	print_int
+	
+	la $a0, next_str
+	print_string
+	
+	addi $t0, $t0, PCB_SIZE
+	lw $a0, TICKS_TO_SWITCH($t0) # task 1
+	print_int
+	
+	la $a0, next_str
+	print_string
+	
+	addi $t0, $t0, PCB_SIZE
+	lw $a0, TICKS_TO_SWITCH($t0) # task 2
+	print_int
+	
+	la $a0, next_str
+	print_string
+	
+	addi $t0, $t0, PCB_SIZE
+	lw $a0, TICKS_TO_SWITCH($t0) # task 3
+	print_int
+	
 	jr $ra
