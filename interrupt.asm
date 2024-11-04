@@ -75,13 +75,11 @@ test_int:
 	b int_end
 
 trap_int:
-	#bne $a0, 1, int_end
 	beq $a0, 1, new_task_int
 	beq $a0, 2, sleep_l
 	b done_int
 	sleep_l:
-		la $a0, sleep_str
-		print_string
+		jal sleep_task_int
 	done_int:
 		mfc0 $t0, $14
 		addi $t0, $t0, 4
@@ -127,10 +125,10 @@ new_task_int:
 		lb $t0, CREATED_TASK_COUNTER
 		addi $t0, $t0, 1
 		sb $t0, CREATED_TASK_COUNTER # CREATED_TASK_COUNTER += 1
-	store_pid_epc:
+	store_pid_epc: # also store TICKS_TO_SWITCH, TICKS_TO_WAIT and PRIORITY
 		lw $t0, LAST_READY
 		lb $t1, CREATED_TASK_COUNTER
-		addi $t1, $t1, -1
+		#addi $t1, $t1, -1
 		sb $t1, PROCESS_ID($t0) # stores the new process id on the correspondent PCB
 		sw $a1, epc($t0) # new task's starting address(epc)
 		li $t1, 3
@@ -145,41 +143,127 @@ new_task_int:
 		print_string
 		b int_end
 
+# t0 = current node, t1 = next node
+sleep_task_int:
+	lw $t0, WAITING
+	go_to_wait:
+		bnez $t0, not_empty_list
+		lw
+		empty_list:
+			lw $t0, RUNNING
+			sw $t0, WAITING
+			sw $a1, TICKS_TO_WAIT($t0)
+			sw $zero, NEXT_PCB($t0)
+			b done_sleep
+		not_empty_list:
+			lw $t1, NEXT_PCB($t0)
+			bnez $t1, not_last_element
+			lw $t2, TICKS_TO_WAIT($t0)
+			ble $a1, $t2, insert_first
+			lw $t2, RUNNING
+			sw $a1, TICKS_TO_WAIT($t2)
+			sw $zero, NEXT_PCB($t2)
+			sw $t2, NEXT_PCB($t0)
+			b done_sleep
+			insert_first:
+				lw $t2, RUNNING
+				sw $a1, TICKS_TO_WAIT($t2)
+				sw $t0, NEXT_PCB($t2)
+				sw $t2, WAITING
+				b done_sleep
+		not_last_element:
+			lw $t2, TICKS_TO_WAIT($t0)
+			bge $a1, $t2, bigger_than_current
+			## insert at the beggining
+			lw $t3, RUNNING
+			sw $a1, TICKS_TO_WAIT($t3)
+			sw $t0, NEXT_PCB($t3)
+			sw $t3, WAITING
+			b done_sleep
+			##
+			bigger_than_current:
+				lw $t2, TICKS_TO_WAIT($t1) # next node's TICKS_TO_WAIT
+				bgt $a1, $t2, next_iteration
+				lw $t3, RUNNING
+				sw $a1, TICKS_TO_WAIT($t3)
+				sw $t1, NEXT_PCB($t3)
+				sw $t3, NEXT_PCB($t0)
+				b done_sleep
+			next_iteration:
+				move $t0, $t1
+				b not_empty_list
+			
+	done_sleep:
+		sw $zero, RUNNING	
+		#b done_int
+		jr $ra
+		
+select_next_task:
+	lw $t0, READY_HIGH
+	beqz $t0, no_tasks_in_high
+	lw $t1, NEXT_PCB($t0)
+	li $t3, 3
+	sw $t3, TICKS_TO_SWITCH($t0)
+	sw $zero, $t0
+	sw $t0, RUNNING
+	sw $t1, READY_HIGH
+	b exit_selector	
+	no_tasks_in_high:
+		lw $t0, READY_LOW
+		beqz $t0, no_tasks_in_low
+		lw $t1, NEXT_PCB($t0)
+		li $t3, 3
+		sw $t3, TICKS_TO_SWITCH($t0)
+		sw $zero, $t0
+		sw $t0, RUNNING
+		sw $t1, READY_LOW
+		b exit_selector
+	no_tasks_in_low:
+		lw $t0, IDLE_TASK
+		sw $t0, RUNNING
+	exit_selector:
+		jr $ra
+
+decrement_ticks_to_wait:
+	lw $t0, WAITING
+	beqz $t0, no_tasks_waiting
+	decrement_loop:
+		lb $t1, TICKS_TO_WAIT($t0)
+		addi $t1, $t1, -1
+		sb $t1, TICKS_TO_WAIT($t0)
+		sw $t0, NEXT_PCB($t0)
+		#beqz $t0, no_tasks_waiting
+		bnez $t0, decrement_loop
+	no_tasks_waiting:
+		jr $ra
+
+done_waiting:
+	jr $ra
+
 timer_int:
 	#jal print_PCB_sequence
 	lw $t0, RUNNING
 	lw $t1, TICKS_TO_SWITCH($t0)
 	
-	beqz $t1, switch_task
+	jal decrement_ticks_to_wait
 	
-	addi $t1, $t1, -1
-	sw $t1, TICKS_TO_SWITCH($t0)
-	#jal print_TICKS_TO_SWITCH
-	b int_end
+	lw $t2, WAITING
+	lb $t2, TICKS_TO_WAIT($t2)
+	
+	bnez $t2, not_done_waiting
+	jal done_waiting
+	
+	not_done_waiting:
+		beqz $t1, switch_task
+		
+		addi $t1, $t1, -1
+		sw $t1, TICKS_TO_SWITCH($t0)
+		b int_end
 	
 	switch_task:
-		li $t1, 3
-		jal save_running_task_registers
-	
-		lw $t0, RUNNING
-		lw $t1, LAST_READY
-		sw $t0, 140($t1) # last_ready -> next = run
-	
-		lw $t0, RUNNING
-		sw $t0, LAST_READY # last_ready = run
-	
-		lw $t0, READY
-		sw $t0, RUNNING # run = ready
-	
-		lw $t0, READY
-		lw $t0, 140($t0) # t0 = ready->next
-		sw $t0, READY # ready = ready->next
-	
-		lw $t0, RUNNING
-		sw $zero, 140($t0) # run -> next = null
-	
-		#jal print_PCB_sequence
-		jal load_next_task_registers
+		li $a1, 100
+		jal sleep_task_int
+		jal select_next_task
 	
 int_end:
 	lw $v0 , save_v0

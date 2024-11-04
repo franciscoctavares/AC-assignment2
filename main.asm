@@ -69,7 +69,7 @@ prep_multi:
 	li $t1, 1
 	sw $t1, CREATED_TASK_COUNTER # created tasks = 1
 	
-	li $t0, 0
+	li $t0, 1
 	lw $t1, RUNNING
 	sw $t0, PROCESS_ID($t0) # stores main task's process id in the PCB
 	
@@ -94,13 +94,26 @@ newtask:
 	
 	move $a2, $a1
 	move $a1, $a0
-	li $a0, 1
+	li $a0, 1 # "syscall" service code
 	teqi $zero, 0
 	
 	lw $a2, 0($sp)
 	addi $sp, $sp, 4
 	jr $ra
     
+# a0 = sleep time(ticks)
+sleep:
+	addiu $sp, $sp, ?4
+	sw $a1, 0($sp)
+	
+	move $a1, $a0
+	li $a0, 2 # "syscall" service code
+	teqi $zero , 0
+	
+	lw $a1, 0($sp)
+	addiu $sp, $sp, 4
+	jr $ra
+	
 start_multi:
 	addi $sp, $sp, -4
 	sw $ra, 0($sp)
