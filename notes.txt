@@ -1,0 +1,11 @@
+Counter
+ Byte value at address 0xFFFF0013 : If one bit of this byte is set, the counter interruption is enable.
+ If counter interruption is enable, every 30 instructions, an exception is started with cause register bit number 10.
+
+
+(print process ID)
+Running -> 
+Ready High ->
+Ready Low -> 
+Waiting ->
+Idle -> 

@@ -16,6 +16,16 @@
 	syscall
 .end_macro
 
+.macro print_new_line
+	li $a0, '\n'
+	print_char
+.end_macro
+
+.macro print_space
+	li $a0, ' '
+	print_char
+.end_macro
+
 # offset of addresses for accessing the PCB's
 .eqv at 0
 .eqv v0 4
@@ -62,8 +72,9 @@
 
 .data
 
-PCB_BLOCKS: .space 1560 # 144 bytes x 10 Tasks
-PCB_STACKS: .space 1000 # (4 bytes x 25 variables) x 10 PCB's
+PCB_BLOCKS: .space 1560        # 144 bytes x 10 Tasks
+PCB_STACKS: .space 1000        # (4 bytes x 25 variables) x 10 PCB's
+IDLE_TASK_PCB: .space PCB_SIZE # idle task's PCB
 
 RUNNING: .word 0x00000000      # running task
 READY: .word 0x00000000        # ready tasks list
@@ -71,10 +82,13 @@ LAST_READY: .word 0x00000000   # last ready task
 
 READY_HIGH: .word 0x00000000   # high priority ready tasks list
 READY_LOW: .word 0x00000000    # low priority ready tasks list
+LAST_READY_HIGH: .word 0x00000000
+LAST_READY_LOW: .word 0x00000000
 WAITING: .word 0x00000000      # waiting tasks list
 IDLE_TASK: .word 0x00000000    # idle task
 
-IDLE_TASK_PCB: .space PCB_SIZE # idle task's PCB
-
 CREATED_TASK_COUNTER: .word 0x00000000
 AVAILABLE: .word 0x00000000
+
+INT_COUNTER: .space 4
+N_INT: .word 4
